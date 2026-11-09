@@ -27,7 +27,13 @@ function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  user,
+}: {
+  children: React.ReactNode;
+  user?: { name: string; email: string };
+}) {
   const pathname = usePathname();
   const [busy, setBusy] = useState(false);
   const lastTouch = useRef(0);
@@ -123,15 +129,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          <button
-            type="button"
-            onClick={handleLogout}
-            disabled={busy}
-            className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.03] px-3.5 py-2 text-sm font-medium text-muted transition hover:border-red-400/20 hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"
-          >
-            <LogOut size={16} />
-            <span className="hidden sm:inline">Logout</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {user && (
+              <span className="flex items-center gap-2.5 rounded-xl border border-white/5 bg-white/[0.03] py-1 pl-1 pr-3">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-sm font-bold text-[#071510]">
+                  {user.name.slice(0, 1).toUpperCase()}
+                </span>
+                <span className="hidden max-w-[160px] leading-tight md:block">
+                  <span className="block truncate text-sm font-semibold">
+                    {user.name}
+                  </span>
+                  <span className="block truncate text-[11px] text-muted">
+                    {user.email}
+                  </span>
+                </span>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={busy}
+              className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/[0.03] px-3.5 py-2 text-sm font-medium text-muted transition hover:border-red-400/20 hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"
+            >
+              <LogOut size={16} />
+              <span className="hidden sm:inline">Logout</span>
+            </button>
+          </div>
         </div>
       </header>
 

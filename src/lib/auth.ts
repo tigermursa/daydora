@@ -4,6 +4,12 @@ const COOKIE = "daydora_session";
 const TTL_SECONDS = 20 * 60;
 const SECRET = process.env.AUTH_SECRET || "dev-secret-change-me";
 
+interface SessionData {
+  uid: string;
+  email: string;
+  exp: number;
+}
+
 async function hmac(payload: string): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
@@ -20,25 +26,35 @@ async function hmac(payload: string): Promise<string> {
   return btoa(String.fromCharCode(...new Uint8Array(sig)));
 }
 
-async function sign(exp: number): Promise<string> {
-  const payload = btoa(JSON.stringify({ exp }));
+async function sign(data: SessionData): Promise<string> {
+  const payload = btoa(JSON.stringify(data));
   return `${payload}.${await hmac(payload)}`;
 }
 
-async function verify(token: string): Promise<boolean> {
+async function verify(token: string): Promise<SessionData | null> {
   const [payload, sig] = token.split(".");
-  if (!payload || !sig) return false;
-  if ((await hmac(payload)) !== sig) return false;
+  if (!payload || !sig) return null;
+  if ((await hmac(payload)) !== sig) return null;
   try {
-    const data = JSON.parse(atob(payload)) as { exp: number };
-    return typeof data.exp === "number" && Date.now() <= data.exp;
-  } catch {
-    return false;
-  }
+    const data = JSON.parse(atob(payload)) as SessionData;
+    if (
+      typeof data.uid === "string" &&
+      typeof data.email === "string" &&
+      typeof data.exp === "number" &&
+      Date.now() <= data.exp
+    ) {
+      return data;
+    }
+  } catch {}
+  return null;
 }
 
-export async function createSession() {
-  const token = await sign(Date.now() + TTL_SECONDS * 1000);
+export async function createSession(uid: string, email: string) {
+  const token = await sign({
+    uid,
+    email,
+    exp: Date.now() + TTL_SECONDS * 1000,
+  });
   const jar = await cookies();
   jar.set(COOKIE, token, {
     httpOnly: true,
@@ -49,14 +65,25 @@ export async function createSession() {
   });
 }
 
-export async function isAuthed(): Promise<boolean> {
+export async function getSession(): Promise<{
+  uid: string;
+  email: string;
+} | null> {
   const token = (await cookies()).get(COOKIE)?.value;
-  return token ? verify(token) : false;
+  if (!token) return null;
+  const data = await verify(token);
+  return data ? { uid: data.uid, email: data.email } : null;
 }
 
-export async function requireAuth() {
-  if (!(await isAuthed())) throw new Error("UNAUTHORIZED");
-  await createSession(); // sliding renewal
+export async function isAuthed(): Promise<boolean> {
+  return (await getSession()) !== null;
+}
+
+export async function requireAuth(): Promise<{ uid: string; email: string }> {
+  const session = await getSession();
+  if (!session) throw new Error("UNAUTHORIZED");
+  await createSession(session.uid, session.email); // sliding renewal
+  return session;
 }
 
 export async function clearSession() {

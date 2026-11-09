@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowRight, Lock, Mail } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
@@ -77,6 +78,15 @@ export function LoginForm() {
       <p className="flex items-center justify-center gap-1.5 pt-1 text-[11px] text-muted/80">
         <Lock size={11} />
         Secure · Your dates stay private
+      </p>
+      <p className="text-center text-sm text-muted">
+        New here?{" "}
+        <Link
+          href="/signup"
+          className="font-semibold text-emerald-300 hover:text-emerald-200"
+        >
+          Create an account
+        </Link>
       </p>
     </form>
   );

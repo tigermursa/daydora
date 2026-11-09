@@ -10,10 +10,19 @@ declare global {
 
 export interface EventDoc {
   _id?: ObjectId;
+  userId?: string; // legacy docs (pre-multi-user) may not have one
   title: string;
   date: string;
   type: EventType;
   recurring: boolean;
+  createdAt: Date;
+}
+
+export interface UserDoc {
+  _id?: ObjectId;
+  name: string;
+  email: string; // always stored lowercase
+  passwordHash: string; // "salt:hash" (scrypt)
   createdAt: Date;
 }
 
@@ -25,7 +34,26 @@ function getClient(): Promise<MongoClient> {
   return global._mongoClientPromise;
 }
 
+let eventsIndexReady = false;
+
 export async function eventsCollection(): Promise<Collection<EventDoc>> {
   const client = await getClient();
-  return client.db().collection<EventDoc>("events");
+  const col = client.db().collection<EventDoc>("events");
+  if (!eventsIndexReady) {
+    await col.createIndex({ userId: 1, createdAt: -1 });
+    eventsIndexReady = true;
+  }
+  return col;
+}
+
+let usersIndexReady = false;
+
+export async function usersCollection(): Promise<Collection<UserDoc>> {
+  const client = await getClient();
+  const col = client.db().collection<UserDoc>("users");
+  if (!usersIndexReady) {
+    await col.createIndex({ email: 1 }, { unique: true });
+    usersIndexReady = true;
+  }
+  return col;
 }

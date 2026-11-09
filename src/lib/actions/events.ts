@@ -29,17 +29,22 @@ function validate(input: EventInput): string | null {
 }
 
 export async function listEvents(): Promise<DayEvent[]> {
-  await requireAuth();
+  const { uid: userId } = await requireAuth();
   const col = await eventsCollection();
-  const docs = await col.find().sort({ createdAt: -1 }).toArray();
+  // STRICT ISOLATION: a user only ever sees rows tagged with their own
+  // userId. Docs without a userId (created before multi-user accounts
+  // existed) are invisible to everyone — assign them to an account once via
+  // `node scripts/migrate-events.mjs <email>` instead of auto-claiming.
+  const docs = await col.find({ userId }).sort({ createdAt: -1 }).toArray();
   return docs.map((d) => serialize(d as EventDoc & { _id: ObjectId }));
 }
 
 export async function createEvent(
   input: EventInput,
 ): Promise<{ ok: boolean; error?: string; event?: DayEvent }> {
+  let userId: string;
   try {
-    await requireAuth();
+    ({ uid: userId } = await requireAuth());
   } catch {
     return { ok: false, error: "SESSION_EXPIRED" };
   }
@@ -47,6 +52,7 @@ export async function createEvent(
   if (err) return { ok: false, error: err };
   const col = await eventsCollection();
   const doc: EventDoc = {
+    userId,
     title: input.title.trim(),
     date: input.date,
     type: input.type,
@@ -61,8 +67,9 @@ export async function updateEvent(
   id: string,
   input: EventInput,
 ): Promise<{ ok: boolean; error?: string; event?: DayEvent }> {
+  let userId: string;
   try {
-    await requireAuth();
+    ({ uid: userId } = await requireAuth());
   } catch {
     return { ok: false, error: "SESSION_EXPIRED" };
   }
@@ -71,7 +78,7 @@ export async function updateEvent(
   if (!ObjectId.isValid(id)) return { ok: false, error: "Invalid id" };
   const col = await eventsCollection();
   const updated = await col.findOneAndUpdate(
-    { _id: new ObjectId(id) },
+    { _id: new ObjectId(id), userId },
     {
       $set: {
         title: input.title.trim(),
@@ -92,13 +99,14 @@ export async function updateEvent(
 export async function deleteEvent(
   id: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  let userId: string;
   try {
-    await requireAuth();
+    ({ uid: userId } = await requireAuth());
   } catch {
     return { ok: false, error: "SESSION_EXPIRED" };
   }
   if (!ObjectId.isValid(id)) return { ok: false, error: "Invalid id" };
   const col = await eventsCollection();
-  await col.deleteOne({ _id: new ObjectId(id) });
+  await col.deleteOne({ _id: new ObjectId(id), userId });
   return { ok: true };
 }
